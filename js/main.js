@@ -32,10 +32,10 @@
     window.addEventListener('resize', resizeCanvas);
 
     // ── App state ──────────────────────────────────────────────────────────
-    let currentTool = 'hot';   // 'hot' | 'cold' | 'erase'
-    let paused      = false;
-    let mouseDown   = false;
-    let lastPaintPos = null;   // debounce painting
+    let currentTool  = 'hot';   // 'hot' | 'cold' | 'erase'
+    let paused       = false;
+    let mouseDown    = false;
+    let lastPaintPos = null;
 
     // ── Tool buttons ───────────────────────────────────────────────────────
     const toolBtns = {
@@ -55,7 +55,7 @@
         b.addEventListener('click', () => setTool(k));
     }
 
-    // ── Sliders ────────────────────────────────────────────────────────────
+    // ── Generic slider binder ──────────────────────────────────────────────
     function bindSlider(id, valId, obj, prop, fmt) {
         const el    = document.getElementById(id);
         const valEl = document.getElementById(valId);
@@ -68,20 +68,38 @@
         update();
     }
 
-    bindSlider('sl-alpha',   'val-alpha',   sim, 'alpha',   v => v.toFixed(2));
-    bindSlider('sl-gravity', 'val-gravity', sim, 'gravity', v => v.toFixed(2));
-    bindSlider('sl-decay',   'val-decay',   sim, 'decay',   v => v.toFixed(3));
+    // ── Physics sliders ────────────────────────────────────────────────────
+    bindSlider('sl-alpha',     'val-alpha',     sim, 'alpha',      v => v.toFixed(2));
+    bindSlider('sl-gravity',   'val-gravity',   sim, 'gravity',    v => v.toFixed(2));
+    bindSlider('sl-decay',     'val-decay',     sim, 'decay',      v => v.toFixed(3));
+    bindSlider('sl-vortconf',  'val-vortconf',  sim, 'vortConf',   v => v.toFixed(2));
+    bindSlider('sl-turb',      'val-turb',      sim, 'turbulence', v => v.toFixed(2));
+
+    // Source intensity slider (local — only used at paint time)
+    document.getElementById('sl-src-temp').addEventListener('input', function () {
+        document.getElementById('val-src-temp').textContent = parseFloat(this.value).toFixed(2);
+    });
+
+    // ── Visualisation controls ─────────────────────────────────────────────
+    document.getElementById('chk-vectors').addEventListener('change', function () {
+        renderer.showVectors = this.checked;
+    });
+
+    document.getElementById('chk-sources').addEventListener('change', function () {
+        renderer.showSources = this.checked;
+    });
 
     document.getElementById('sl-vec-spacing').addEventListener('input', function () {
         renderer.vectorSpacing = parseInt(this.value);
         document.getElementById('val-vec-spacing').textContent = this.value;
     });
 
-    document.getElementById('chk-vectors').addEventListener('change', function () {
-        renderer.showVectors = this.checked;
+    document.getElementById('sl-vec-scale').addEventListener('input', function () {
+        renderer.vectorScale = parseFloat(this.value);
+        document.getElementById('val-vec-scale').textContent = parseFloat(this.value).toFixed(1);
     });
 
-    // ── Buttons ────────────────────────────────────────────────────────────
+    // ── Action buttons ─────────────────────────────────────────────────────
     document.getElementById('btn-clear').addEventListener('click', () => {
         sim.clearField();
     });
@@ -100,8 +118,8 @@
 
     // ── Canvas → simulation coordinates ───────────────────────────────────
     function toSim(e) {
-        const rect   = canvas.getBoundingClientRect();
-        const src    = e.touches ? e.touches[0] : e;
+        const rect = canvas.getBoundingClientRect();
+        const src  = e.touches ? e.touches[0] : e;
         return {
             x: Math.floor((src.clientX - rect.left) / rect.width  * SIM_W),
             y: Math.floor((src.clientY - rect.top)  / rect.height * SIM_H),
@@ -122,7 +140,6 @@
             return;
         }
         if (forceAdd) {
-            // Debounce: don't add another source if we barely moved
             if (lastPaintPos &&
                 Math.hypot(pos.x - lastPaintPos.x, pos.y - lastPaintPos.y) < 5) return;
             lastPaintPos = pos;
@@ -134,7 +151,7 @@
     canvas.addEventListener('mousedown', e => {
         if (e.button !== 0) return;
         e.preventDefault();
-        mouseDown   = true;
+        mouseDown    = true;
         lastPaintPos = null;
         interact(e, true);
     });
@@ -151,7 +168,6 @@
         if (sim.removeNearestSource(pos.x, pos.y)) updateSourceList();
     });
 
-    // Touch support
     canvas.addEventListener('touchstart', e => {
         e.preventDefault();
         mouseDown    = true;
@@ -164,23 +180,23 @@
     }, { passive: false });
     canvas.addEventListener('touchend', () => { mouseDown = false; });
 
-    // ── Source list ────────────────────────────────────────────────────────
+    // ── Source list UI ─────────────────────────────────────────────────────
     function updateSourceList() {
         sourceCountEl.textContent = sim.sources.length;
         sourceListEl.innerHTML = '';
         for (const src of sim.sources) {
-            const div  = document.createElement('div');
+            const div = document.createElement('div');
             div.className = 'source-item';
 
-            const dot  = document.createElement('span');
+            const dot = document.createElement('span');
             dot.className = 'source-dot';
             dot.style.background = src.temperature > 0 ? '#ff9900' : '#0099ff';
 
-            const lbl  = document.createElement('span');
+            const lbl = document.createElement('span');
             lbl.className = 'source-label';
             lbl.textContent = `${src.temperature > 0 ? 'Hot' : 'Cold'} ${Math.abs(src.temperature).toFixed(2)}`;
 
-            const btn  = document.createElement('button');
+            const btn = document.createElement('button');
             btn.className = 'src-remove';
             btn.textContent = '×';
             btn.addEventListener('click', () => {
@@ -197,14 +213,14 @@
     let lastTime  = 0;
     let fpsFrames = 0;
     let fpsAcc    = 0;
-    const STEPS_PER_FRAME = 3;
+    const STEPS_PER_FRAME = 2;
 
     function animate(now) {
         if (!lastTime) lastTime = now;
-        const dt = now - lastTime;
+        const elapsed = now - lastTime;
         lastTime = now;
 
-        fpsAcc += dt;
+        fpsAcc += elapsed;
         fpsFrames++;
         if (fpsAcc >= 500) {
             fpsEl.textContent = (fpsFrames / (fpsAcc / 1000)).toFixed(1) + ' fps';
@@ -219,9 +235,9 @@
     }
 
     // ── Demo sources ───────────────────────────────────────────────────────
-    sim.addSource(Math.floor(SIM_W * 0.28), Math.floor(SIM_H * 0.78), 0.85);
-    sim.addSource(Math.floor(SIM_W * 0.72), Math.floor(SIM_H * 0.72), 0.90);
-    sim.addSource(Math.floor(SIM_W * 0.50), Math.floor(SIM_H * 0.25), -0.60);
+    sim.addSource(Math.floor(SIM_W * 0.28), Math.floor(SIM_H * 0.80),  0.85);
+    sim.addSource(Math.floor(SIM_W * 0.72), Math.floor(SIM_H * 0.75),  0.90);
+    sim.addSource(Math.floor(SIM_W * 0.50), Math.floor(SIM_H * 0.22), -0.60);
     updateSourceList();
 
     requestAnimationFrame(animate);
