@@ -7,42 +7,46 @@ class HeatRenderer {
         this.simWidth  = simWidth;
         this.simHeight = simHeight;
 
-        this.showVectors   = true;
+        // Visualisation toggles (all off by default for a clean first view)
+        this.showVectors   = false;
+        this.showSources   = false;
         this.vectorSpacing = 12;
+        this.vectorScale   = 1.0;   // multiplier for arrow length
 
         // Temperature display range
         this.tMin = -1.0;
         this.tMax =  1.0;
 
-        // Pre-built colour lookup table (LUT) for fast pixel colouring
+        // Pre-built colour lookup table for fast pixel colouring
         this.LUT_SIZE = 1024;
         this.colorLUT = this._buildColorLUT();
 
         // Off-screen canvas for pixel-level temperature rendering
-        this.offscreen          = document.createElement('canvas');
-        this.offscreen.width    = simWidth;
-        this.offscreen.height   = simHeight;
-        this.offCtx             = this.offscreen.getContext('2d');
-        this.offImageData       = this.offCtx.createImageData(simWidth, simHeight);
+        this.offscreen       = document.createElement('canvas');
+        this.offscreen.width  = simWidth;
+        this.offscreen.height = simHeight;
+        this.offCtx          = this.offscreen.getContext('2d');
+        this.offImageData    = this.offCtx.createImageData(simWidth, simHeight);
     }
 
-    // Diverging colormap: cold blue → black → purple → red → orange → white
+    /**
+     * Diverging colourmap:
+     *   cold (deep blue) → ambient (near-black) → hot (crimson → orange → white)
+     */
     _buildColorLUT() {
-        const N = this.LUT_SIZE;
-        const lut = new Uint8Array(N * 4);
-
-        // [normalised_position, r, g, b]  where pos ∈ [0,1] maps tMin→tMax
+        const N    = this.LUT_SIZE;
+        const lut  = new Uint8Array(N * 4);
         const keys = [
-            [0.00,  30, 110, 255],  // T = tMin  – cold blue
-            [0.20,   0,  30, 180],  // T = -0.6  – medium blue
-            [0.42,   0,   0,  18],  // T = -0.16 – near-black
-            [0.50,   0,   0,   5],  // T = 0     – ambient (near-black)
-            [0.58,  50,   0,  45],  // T = +0.16 – dark purple
-            [0.68, 180,   0,  15],  // T = +0.36 – dark crimson
-            [0.78, 255,  80,   0],  // T = +0.56 – orange
-            [0.88, 255, 215,   0],  // T = +0.76 – yellow
-            [0.94, 255, 255, 160],  // T = +0.88 – pale yellow
-            [1.00, 255, 255, 255],  // T = tMax  – white
+            [0.00,  20, 100, 255],  // tMin   – deep blue
+            [0.18,   0,  20, 180],  // –0.64  – mid blue
+            [0.38,   0,   0,  30],  // –0.24  – near-black blue
+            [0.50,   0,   0,   6],  // 0      – ambient
+            [0.60,  55,   0,  50],  // +0.20  – dark purple
+            [0.70, 190,   0,  12],  // +0.40  – dark crimson
+            [0.80, 255,  70,   0],  // +0.60  – orange
+            [0.88, 255, 200,   0],  // +0.76  – yellow
+            [0.94, 255, 255, 140],  // +0.88  – pale yellow
+            [1.00, 255, 255, 255],  // tMax   – white
         ];
 
         for (let i = 0; i < N; i++) {
@@ -66,8 +70,10 @@ class HeatRenderer {
     render(sim) {
         this._renderField(sim);
         if (this.showVectors) this._renderVectors(sim);
-        this._renderSources(sim);
+        if (this.showSources) this._renderSources(sim);
     }
+
+    // ── Private rendering methods ───────────────────────────────────────────
 
     _renderField(sim) {
         const { width: W, height: H, T } = sim;
@@ -92,40 +98,44 @@ class HeatRenderer {
     }
 
     _renderVectors(sim) {
-        const { width: W, height: H, vx, vy, gravity } = sim;
+        const { width: W, height: H, vx, vy } = sim;
         const ctx = this.ctx;
         const cW  = this.canvas.width;
         const cH  = this.canvas.height;
         const sx  = cW / W;
         const sy  = cH / H;
         const sp  = this.vectorSpacing;
+        const maxLen = sp * 0.65 * this.vectorScale;
 
         ctx.lineWidth = 1;
 
-        for (let gy = (sp / 2) | 0; gy < H; gy += sp) {
-            for (let gx = (sp / 2) | 0; gx < W; gx += sp) {
-                const i   = gy * W + gx;
-                const u   = vx[i];
-                const v   = vy[i];
+        for (let gy = sp >> 1; gy < H; gy += sp) {
+            for (let gx = sp >> 1; gx < W; gx += sp) {
+                const i  = gy * W + gx;
+                const u  = vx[i];
+                const v  = vy[i];
                 const mag = Math.sqrt(u * u + v * v);
-                if (mag < 0.02) continue;
+                if (mag < 0.04) continue;
 
-                // Scale so maximum arrow = 0.6 * spacing pixels
-                const maxPx  = sp * 0.6;
-                const scale  = Math.min(maxPx / (mag * Math.min(sx, sy)), maxPx);
-                const ax     = u * scale * sx / Math.min(sx, sy);
-                const ay     = v * scale * sy / Math.min(sx, sy);
+                // Project velocity into canvas-pixel space
+                const ux = u * sx;
+                const uy = v * sy;
+                const canvasMag = Math.sqrt(ux * ux + uy * uy);
+                // Scale to maxLen, preserving direction; min-length of 2px for visibility
+                const draw = (Math.min(canvasMag, maxLen) + Math.max(0, maxLen * 0.15 - canvasMag)) / (canvasMag + 1e-9);
+                const ax = ux * draw;
+                const ay = uy * draw;
 
                 const cx = (gx + 0.5) * sx;
                 const cy = (gy + 0.5) * sy;
                 const ex = cx + ax;
                 const ey = cy + ay;
 
-                const alpha = Math.min(0.9, 0.25 + 0.75 * Math.min(1, mag / (gravity + 0.01)));
+                const alpha = Math.min(0.92, 0.18 + 0.82 * Math.min(1, mag / 3.5));
                 ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
 
                 const angle = Math.atan2(ay, ax);
-                const hLen  = Math.max(2.5, Math.sqrt(ax * ax + ay * ay) * 0.35);
+                const hLen  = Math.max(2.0, Math.sqrt(ax * ax + ay * ay) * 0.36);
 
                 ctx.beginPath();
                 ctx.moveTo(cx, cy);
@@ -147,24 +157,25 @@ class HeatRenderer {
         for (const src of sim.sources) {
             const cx = (src.x + 0.5) * sx;
             const cy = (src.y + 0.5) * sy;
-            const r  = (src.radius + 2) * r0;
+            const r  = (src.radius + 2.5) * r0;
+            const hot = src.temperature > 0;
 
+            // Outer ring
             ctx.beginPath();
             ctx.arc(cx, cy, r, 0, Math.PI * 2);
-            ctx.strokeStyle = src.temperature > 0
-                ? 'rgba(255, 160, 0, 0.75)'
-                : 'rgba(0, 160, 255, 0.75)';
+            ctx.strokeStyle = hot ? 'rgba(255,150,0,0.80)' : 'rgba(0,150,255,0.80)';
             ctx.lineWidth = 1.5;
             ctx.stroke();
 
+            // Inner dot
             ctx.beginPath();
-            ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
-            ctx.fillStyle = src.temperature > 0 ? '#ffaa00' : '#00aaff';
+            ctx.arc(cx, cy, 2.8, 0, Math.PI * 2);
+            ctx.fillStyle = hot ? '#ffaa00' : '#00aaff';
             ctx.fill();
         }
     }
 
-    // Draw the colormap scale into a separate <canvas> element.
+    /** Render the colour-temperature scale into a separate <canvas> element. */
     drawColorbar(legendCanvas) {
         if (!legendCanvas) return;
         const ctx = legendCanvas.getContext('2d');
@@ -175,7 +186,7 @@ class HeatRenderer {
 
         for (let i = 0; i < W; i++) {
             const idx = Math.min(N - 1, Math.floor(i / W * N)) * 4;
-            ctx.fillStyle = `rgb(${lut[idx]},${lut[idx+1]},${lut[idx+2]})`;
+            ctx.fillStyle = `rgb(${lut[idx]},${lut[idx + 1]},${lut[idx + 2]})`;
             ctx.fillRect(i, 0, 1, H);
         }
     }
