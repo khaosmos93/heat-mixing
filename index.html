@@ -49,13 +49,13 @@
 
     /* ── Sidebar ─────────────────────────────────────────────────────── */
     #sidebar {
-      flex: 0 0 238px;
+      flex: 0 0 242px;
       background: var(--panel);
       border-left: 1px solid var(--border);
       padding: 14px 14px 10px;
       display: flex;
       flex-direction: column;
-      gap: 13px;
+      gap: 11px;
       overflow-y: auto;
     }
 
@@ -67,7 +67,7 @@
     }
 
     /* ── Sections ─────────────────────────────────────────────────────── */
-    .section { display: flex; flex-direction: column; gap: 7px; }
+    .section { display: flex; flex-direction: column; gap: 6px; }
 
     .sec-title {
       font-size: 10px;
@@ -76,7 +76,7 @@
       color: var(--text-dim);
     }
 
-    /* ── Tool buttons ─────────────────────────────────────────────────── */
+    /* ── Tool / action buttons ────────────────────────────────────────── */
     .btn-row { display: flex; gap: 5px; }
 
     button {
@@ -95,8 +95,72 @@
 
     #tool-hot.active  { border-color: var(--hot);  color: var(--hot); }
     #tool-cold.active { border-color: var(--cold); color: var(--cold); }
-
     .tool-btn { flex: 1; }
+
+    /* ── Text input ─────────────────────────────────────────────────── */
+    .text-row {
+      display: flex;
+      gap: 5px;
+      align-items: stretch;
+    }
+
+    #text-input {
+      flex: 1;
+      min-width: 0;
+      padding: 5px 7px;
+      background: #0a0a18;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 12px;
+      font-family: Georgia, 'Times New Roman', serif;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    #text-input:focus { border-color: #4444aa; }
+    #text-input::placeholder { color: var(--text-dim); font-style: italic; font-family: inherit; }
+
+    #btn-apply-text {
+      flex: 0 0 auto;
+      padding: 5px 9px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Per-character toggle buttons ────────────────────────────────── */
+    #char-toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      min-height: 10px;
+    }
+
+    .char-btn {
+      min-width: 24px;
+      height: 28px;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-size: 15px;
+      font-weight: bold;
+      font-family: Georgia, 'Times New Roman', serif;
+      cursor: pointer;
+      text-align: center;
+      line-height: 24px;
+      transition: all 0.12s;
+      user-select: none;
+    }
+    .char-btn.hot {
+      background: rgba(255, 100, 0, 0.18);
+      border: 1px solid var(--hot);
+      color: var(--hot);
+    }
+    .char-btn.cold {
+      background: rgba(0, 100, 255, 0.18);
+      border: 1px solid var(--cold);
+      color: var(--cold);
+    }
+    .char-btn:hover { opacity: 0.75; }
 
     /* ── Sliders ─────────────────────────────────────────────────────── */
     .slider-row { display: flex; flex-direction: column; gap: 3px; }
@@ -123,6 +187,20 @@
       accent-color: var(--accent);
       cursor: pointer;
     }
+
+    /* ── Selects ─────────────────────────────────────────────────────── */
+    select {
+      width: 100%;
+      padding: 5px 7px;
+      background: #0a0a18;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+      outline: none;
+    }
+    select:focus { border-color: #4444aa; }
 
     /* ── Checkboxes ───────────────────────────────────────────────────── */
     .chk-row {
@@ -158,7 +236,7 @@
       display: flex;
       flex-direction: column;
       gap: 3px;
-      max-height: 110px;
+      max-height: 90px;
       overflow-y: auto;
     }
 
@@ -189,11 +267,17 @@
     }
     .src-remove:hover { color: #cc4444; border-color: #cc3333; background: #200808; }
 
-    /* ── Footer hints ─────────────────────────────────────────────────── */
+    /* ── Hints ────────────────────────────────────────────────────────── */
     .hint {
       font-size: 10px;
       color: var(--text-dim);
       line-height: 1.6;
+    }
+    .hint-latex {
+      font-size: 10px;
+      color: #444464;
+      line-height: 1.5;
+      font-style: italic;
     }
 
     #fps-display {
@@ -210,11 +294,11 @@
       margin: 0;
     }
 
-    /* ── Responsive: stack on small screens ──────────────────────────── */
+    /* ── Responsive ──────────────────────────────────────────────────── */
     @media (max-width: 580px) {
       body            { flex-direction: column; }
       #sidebar        { flex: 0 0 auto; border-left: none; border-top: 1px solid var(--border); }
-      #canvas-container { min-height: 60vh; }
+      #canvas-container { min-height: 55vh; }
     }
   </style>
 </head>
@@ -227,9 +311,43 @@
   <div id="sidebar">
     <h1>Heat Mixing</h1>
 
-    <!-- Tool selection -->
+    <!-- ── Text Source ──────────────────────────────────────────── -->
     <div class="section">
-      <div class="sec-title">Tool</div>
+      <div class="sec-title">Text Source</div>
+
+      <div class="text-row">
+        <input type="text" id="text-input"
+               placeholder="Type text or \alpha, \nabla…"
+               maxlength="24" autocomplete="off" spellcheck="false">
+        <button id="btn-apply-text">Apply</button>
+      </div>
+
+      <div id="char-toggles"></div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <label>Source strength</label>
+          <span class="slider-val" id="val-text-strength">0.65</span>
+        </div>
+        <input type="range" id="sl-text-strength" min="0.05" max="1.0" step="0.05" value="0.65">
+      </div>
+
+      <label class="chk-row">
+        <input type="checkbox" id="chk-text-enabled" checked>
+        Enable text source
+      </label>
+
+      <div class="hint-latex">
+        LaTeX symbols: \alpha → α &nbsp; \nabla → ∇ &nbsp; \int → ∫<br>
+        Click letters above to toggle hot / cold.
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ── Manual paint tool ────────────────────────────────────── -->
+    <div class="section">
+      <div class="sec-title">Paint Tool</div>
       <div class="btn-row">
         <button id="tool-hot"   class="tool-btn active">Hot</button>
         <button id="tool-cold"  class="tool-btn">Cold</button>
@@ -239,7 +357,7 @@
 
     <!-- Source intensity -->
     <div class="section">
-      <div class="sec-title">Source intensity</div>
+      <div class="sec-title">Paint intensity</div>
       <div class="slider-row">
         <div class="slider-header">
           <label>Temperature</label>
@@ -251,7 +369,7 @@
 
     <hr class="divider">
 
-    <!-- Physics parameters -->
+    <!-- ── Physics ──────────────────────────────────────────────── -->
     <div class="section">
       <div class="sec-title">Physics</div>
 
@@ -298,7 +416,32 @@
 
     <hr class="divider">
 
-    <!-- Visualisation -->
+    <!-- ── Colormap + temperature scale ─────────────────────────── -->
+    <div class="section">
+      <div class="sec-title">Colormap</div>
+      <select id="colormap-select">
+        <option value="heat"      selected>Heat (default)</option>
+        <option value="bluered">Blue – Red</option>
+        <option value="coolwarm">Cool – Warm</option>
+        <option value="blackbody">Blackbody</option>
+        <option value="viridis">Viridis</option>
+        <option value="inferno">Inferno</option>
+        <option value="plasma">Plasma</option>
+      </select>
+    </div>
+
+    <div id="colorbar-wrap">
+      <canvas id="colorbar" height="14"></canvas>
+      <div class="cb-labels">
+        <span>Cold</span>
+        <span>Ambient</span>
+        <span>Hot</span>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ── Visualisation ────────────────────────────────────────── -->
     <div class="section">
       <div class="sec-title">Visualisation</div>
 
@@ -331,24 +474,13 @@
 
     <hr class="divider">
 
-    <!-- Colour scale -->
-    <div id="colorbar-wrap">
-      <div class="sec-title">Temperature scale</div>
-      <canvas id="colorbar" height="14"></canvas>
-      <div class="cb-labels">
-        <span>Cold</span>
-        <span>Ambient</span>
-        <span>Hot</span>
-      </div>
-    </div>
-
-    <!-- Active sources -->
+    <!-- ── Active point sources ─────────────────────────────────── -->
     <div class="section">
-      <div class="sec-title">Sources (<span id="source-count">0</span>)</div>
+      <div class="sec-title">Paint sources (<span id="source-count">0</span>)</div>
       <div class="source-list" id="source-list"></div>
     </div>
 
-    <!-- Actions -->
+    <!-- ── Actions ──────────────────────────────────────────────── -->
     <div class="section">
       <div class="btn-row">
         <button id="btn-clear" style="flex:1">Clear field</button>
@@ -358,7 +490,7 @@
     </div>
 
     <div class="hint">
-      Click / drag → place source<br>
+      Click / drag → place paint source<br>
       Right-click → remove nearest<br>
       Erase tool → remove on click
     </div>
@@ -368,6 +500,7 @@
 
   <script src="js/simulation.js"></script>
   <script src="js/renderer.js"></script>
+  <script src="js/textSource.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>
